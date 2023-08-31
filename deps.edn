@@ -1,0 +1,10 @@
+{:paths ["src"]
+ :deps  {org.clojure/clojure                      {:mvn/version "1.11.1"}}
+ :aliases
+ {:test {:extra-paths ["test"]
+         :extra-deps  {lambdaisland/kaocha {:mvn/version "1.75.1190"}
+                       com.h2database/h2 {:mvn/version "1.4.192"}
+                       org.postgresql/postgresql {:mvn/version "42.6.0"}
+                       hikari-cp/hikari-cp {:mvn/version "3.0.1"}
+                       org.clojure/data.json {:mvn/version "2.4.0"}}
+         :main-opts   ["-m" "kaocha.runner"]}}}

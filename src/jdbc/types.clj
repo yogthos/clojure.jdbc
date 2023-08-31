@@ -13,11 +13,11 @@
 ;; limitations under the License.
 
 (ns jdbc.types
-  (:require [jdbc.proto :as proto]
-            [jdbc.resultset :refer [result-set->lazyseq]])
-  (:import java.sql.Connection
-           java.sql.ResultSet
-           java.sql.PreparedStatement))
+  (:require 
+   [jdbc.proto :as proto])
+  (:import
+   java.sql.Connection 
+   java.sql.PreparedStatement))
 
 (defn ->connection
   "Create a connection wrapper.

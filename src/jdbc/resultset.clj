@@ -14,10 +14,12 @@
 
 (ns jdbc.resultset
   "ResultSet conversion functions."
-  (:require [clojure.string :as str]
-            [jdbc.proto :as proto])
-  (:import java.sql.ResultSetMetaData
-           java.sql.ResultSet))
+  (:require 
+   [clojure.string :as str]
+   [jdbc.proto :as proto])
+  (:import
+   java.sql.ResultSetMetaData
+   java.sql.ResultSet))
 
 (defn result-set->lazyseq
   "Function that wraps result in a lazy seq. This function

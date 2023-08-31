@@ -3,7 +3,7 @@
   (:require [jdbc.core :as jdbc]
             [jdbc.proto :as proto]
             [hikari-cp.core :as hikari]
-            [cheshire.core :as json]
+            [clojure.data.json :as json]
             [clojure.test :refer :all]))
 
 (def h2-dbspec1 {:classname "org.h2.Driver"
@@ -21,16 +21,20 @@
                  :isolation-level :serializable})
 
 (def pg-dbspec {:subprotocol "postgresql"
-                :subname "//localhost:5432/test"})
+                :subname "//localhost:5432/test"
+                :user "postgres"
+                :password "postgres"})
 
 (def pg-dbspec-pretty {:vendor "postgresql"
                        :name "test"
                        :host "localhost"
+                       :user "postgres"
+                       :password "postgres"
                        :read-only true})
 
-(def pg-dbspec-uri-1 "postgresql://localhost:5432/test")
-(def pg-dbspec-uri-2 "postgresql://localhost:5432/test?")
-(def pg-dbspec-uri-3 "postgresql://localhost:5432/test?foo=bar")
+(def pg-dbspec-uri-1 "postgresql://localhost:5432/test?user=postgres&password=postgres")
+(def pg-dbspec-uri-2 "postgresql://localhost:5432/test?user=postgres&password=postgres")
+(def pg-dbspec-uri-3 "postgresql://localhost:5432/test?user=postgres&password=postgres")
 
 (deftest datasource-spec
   (with-open [ds (hikari/make-datasource {:adapter "h2" :url "jdbc:h2:/tmp/test"})]
@@ -335,5 +339,4 @@
               (throw (RuntimeException. "Fooo"))))
           (catch Exception e
             (let [results (jdbc/fetch conn [sql3])]
-              (is (= (count results) 2)))))))
-    ))
+              (is (= (count results) 2)))))))))

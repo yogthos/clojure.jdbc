@@ -3,14 +3,13 @@
   :url "http://github.com/niwibe/clojure.jdbc"
   :license {:name "Apache 2.0"
             :url "http://www.apache.org/licenses/LICENSE-2.0.txt"}
-  :dependencies [[org.clojure/clojure "1.8.0" :scope "provided"]]
-  :javac-options ["-target" "1.7" "-source" "1.7" "-Xlint:-options"]
+  :dependencies [[org.clojure/clojure "1.11.1" :scope "provided"]]
   :profiles
   {:dev
    {:dependencies [[com.h2database/h2 "1.4.192"]
-                   [org.postgresql/postgresql "9.4.1209.jre7"]
-                   [hikari-cp "1.7.3"]
-                   [cheshire "5.6.3"]]
+                   [org.postgresql/postgresql "42.6.0"]
+                   [hikari-cp "3.0.1"]
+                   [org.clojure/data.json "2.4.0"]]
     :codeina {:sources ["src"]
               :exclude [jdbc.impl
                         jdbc.transaction

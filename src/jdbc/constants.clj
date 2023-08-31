@@ -15,8 +15,9 @@
 (ns jdbc.constants
   "Namespace that contains a public constants
   used around this library."
-  (:import java.sql.ResultSet
-           java.sql.Connection))
+  (:import 
+   java.sql.ResultSet
+   java.sql.Connection))
 
 (def ^{:doc "ResultSet keyword constants" :static true}
   resultset-options

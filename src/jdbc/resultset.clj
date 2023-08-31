@@ -16,8 +16,7 @@
   "ResultSet conversion functions."
   (:require [clojure.string :as str]
             [jdbc.proto :as proto])
-  (:import java.sql.PreparedStatement
-           java.sql.ResultSetMetaData
+  (:import java.sql.ResultSetMetaData
            java.sql.ResultSet))
 
 (defn result-set->lazyseq

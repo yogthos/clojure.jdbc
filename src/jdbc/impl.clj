@@ -14,17 +14,19 @@
 
 (ns jdbc.impl
   "Protocol implementations. Mainly private api"
-  (:require [clojure.string :as str]
-            [clojure.walk :as walk]
-            [jdbc.proto :as proto]
-            [jdbc.types :as types]
-            [jdbc.resultset :refer [result-set->lazyseq result-set->vector]]
-            [jdbc.constants :as constants])
-  (:import java.net.URI
-           java.util.Properties
-           java.sql.Connection
-           java.sql.DriverManager
-           java.sql.PreparedStatement))
+  (:require 
+   [clojure.string :as str]
+   [clojure.walk :as walk]
+   [jdbc.proto :as proto]
+   [jdbc.types]
+   [jdbc.resultset :refer [result-set->lazyseq result-set->vector]]
+   [jdbc.constants :as constants])
+  (:import
+   java.net.URI
+   java.util.Properties
+   java.sql.Connection
+   java.sql.DriverManager
+   java.sql.PreparedStatement))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Connection constructors implementation

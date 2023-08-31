@@ -14,8 +14,8 @@
 
 (ns jdbc.meta
   "Connection metadata access methods."
-  (:require [jdbc.types :as types]
-            [jdbc.proto :as proto]))
+  (:require
+   [jdbc.proto :as proto]))
 
 (defn vendor-name
   "Get connection vendor name."

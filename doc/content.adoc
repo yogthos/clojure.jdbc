@@ -444,6 +444,37 @@ to an SQL array and assigned properly in a prepared statement:
 _clojure.jdbc_ also exposes the `jdbc.proto/ISQLResultSetReadColumn` protocol that encapsulates
 reverse conversions from SQL types to user-defined types.
 
+Postgres JSONB example
+
+----
+(ns jdbc.pg
+  (:require [jdbc.time]
+            [jdbc.core :as jdbc]
+            [jdbc.proto :as proto]
+            [clojure.data.json :as json])
+  (:import 
+   clojure.lang.IPersistentMap
+   java.sql.PreparedStatement 
+   org.postgresql.util.PGobject))
+
+(extend-protocol proto/ISQLType
+  IPersistentMap
+  (as-sql-type [self _conn]
+    (doto (PGobject.)
+      (.setType "jsonb")
+      (.setValue (json/write-str self))))
+  (set-stmt-parameter! [self conn ^PreparedStatement stmt index]
+    (.setObject stmt index (proto/as-sql-type self conn))))  
+
+(extend-protocol proto/ISQLResultSetReadColumn
+  PGobject
+  (from-sql-type [self _ _ _]
+    (let [value (.getValue self)]
+      (case (.getType self)
+        "jsonb" (json/read-str value :key-fn keyword)
+        value))))
+----
+
 You can read more about that in this blog post: http://www.niwi.be/2014/04/13/postgresql-json-field-with-clojure-and-jdbc/
 
 

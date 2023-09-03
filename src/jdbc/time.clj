@@ -1,7 +1,10 @@
 (ns jdbc.time
   (:require
-   [java-time]
-   [jdbc.proto :refer [ISQLType ISQLResultSetReadColumn]]))
+   [jdbc.proto :refer [ISQLType ISQLResultSetReadColumn]])
+  (:import
+   java.sql.Date
+   java.sql.Time
+   java.sql.Timestamp))
 
 ; java.time.LocalDate     - java.sql.Date
 ; java.time.LocalDateTime - java.sql.Timestamp
@@ -10,35 +13,35 @@
 (extend-protocol ISQLType
   java.time.LocalDate
   (as-sql-type [this _conn]
-    (java-time/sql-date this))
+    (Date/valueOf this))
   (set-stmt-parameter! [this _conn stmt index]
     (.setDate stmt index
-      (java-time/sql-date this)))
+      (Date/valueOf this)))
 
   java.time.LocalTime
   (as-sql-type [this _conn]
-    (java-time/sql-time this))
+    (Time/valueOf this))
   (set-stmt-parameter! [this _conn stmt index]
     (.setTime stmt index
-      (java-time/sql-time this)))
+      (Time/valueOf this)))
 
   java.time.LocalDateTime
   (as-sql-type [this _conn]
-    (java-time/sql-timestamp this))
+    (Timestamp/valueOf this))
   (set-stmt-parameter! [this _conn stmt index]
     (.setTimestamp stmt index
-      (java-time/sql-timestamp this))))
+      (Timestamp/valueOf this))))
   
 (extend-protocol ISQLResultSetReadColumn
   ;
   java.sql.Timestamp
   (from-sql-type [this _conn _metadata _index]
-    (java-time/local-date-time this))
+    (.toLocalDateTime this))
   ;
   java.sql.Date
   (from-sql-type [this _conn _metadata _index]
-    (java-time/local-date this))
+    (.toLocalDate this))
   ;
   java.sql.Time
   (from-sql-type [this _conn _metadata _index]
-    (java-time/local-time this)))
+    (.toLocalTime this)))

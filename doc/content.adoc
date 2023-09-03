@@ -446,6 +446,7 @@ reverse conversions from SQL types to user-defined types.
 
 Postgres JSONB example
 
+[source,clojure]
 ----
 (ns jdbc.pg
   (:require [jdbc.time]

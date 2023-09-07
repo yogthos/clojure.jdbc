@@ -26,7 +26,8 @@
    java.util.Properties
    java.sql.Connection
    java.sql.DriverManager
-   java.sql.PreparedStatement))
+   java.sql.PreparedStatement
+   java.sql.ResultSet))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Connection constructors implementation
@@ -132,8 +133,9 @@
 
 (extend-protocol proto/IExecute
   java.lang.String
-  (execute [sql conn opts]
+  (execute [sql conn {:keys [timeout]}] 
     (with-open [^PreparedStatement stmt (.createStatement ^Connection conn)]
+      (when timeout (.setQueryTimeout stmt timeout))
       (.addBatch stmt ^String sql)
       (seq (.executeBatch stmt))))
 
@@ -147,7 +149,7 @@
           counts))))
 
   PreparedStatement
-  (execute [^PreparedStatement stmt ^Connection conn opts]
+  (execute [^PreparedStatement stmt ^Connection _conn _opts]
     (.executeUpdate stmt)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -194,10 +196,10 @@
   "Given connection and query, return a prepared statement."
   ([^Connection conn sqlvec] (prepared-statement* conn sqlvec {}))
   ([^Connection conn sqlvec {:keys [result-type result-concurrency fetch-size
-                                    max-rows holdability returning]
+                                    max-rows holdability returning timeout]
                              :or {result-type :forward-only
                                   result-concurrency :read-only}
-                             :as options}]
+                             :as _options}]
    (let [sqlvec (if (string? sqlvec) [sqlvec] sqlvec)
          ^String sql (first sqlvec)
          params (rest sqlvec)
@@ -218,11 +220,11 @@
                :else
                (.prepareStatement conn sql
                                   (result-type constants/resultset-options)
-                                  (result-concurrency constants/resultset-options)))]
-
+                                  (result-concurrency constants/resultset-options)))]     
      ;; Set fetch-size and max-rows if provided by user
      (when fetch-size (.setFetchSize stmt fetch-size))
      (when max-rows (.setMaxRows stmt max-rows))
+     (when timeout (.setQueryTimeout stmt timeout))
      (when (seq params)
        (->> params
             (map-indexed #(proto/set-stmt-parameter! %2 conn stmt (inc %1)))
@@ -297,7 +299,7 @@
           (.setReadOnly rconn (:prev-readonly metadata)))))))
 
 (defn- rollback*
-  [conn opts]
+  [conn _opts]
   (let [^Connection rconn (proto/connection conn)
         metadata (meta conn)]
     (if-let [savepoint (:savepoint metadata)]

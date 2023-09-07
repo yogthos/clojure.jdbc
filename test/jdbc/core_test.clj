@@ -2,7 +2,9 @@
   (:require [jdbc.core :as jdbc]
             [jdbc.proto :as proto]
             [hikari-cp.core :as hikari]
-            [clojure.test :refer :all]))
+            [clojure.test :refer :all])
+  (:import java.sql.BatchUpdateException
+           org.postgresql.util.PSQLException))
 
 (def h2-dbspec1 {:classname "org.h2.Driver"
                  :subprotocol "h2"
@@ -31,8 +33,6 @@
                        :read-only true})
 
 (def pg-dbspec-uri-1 "postgresql://localhost:5432/test?user=postgres&password=postgres")
-(def pg-dbspec-uri-2 "postgresql://localhost:5432/test?user=postgres&password=postgres")
-(def pg-dbspec-uri-3 "postgresql://localhost:5432/test?user=postgres&password=postgres")
 
 (deftest datasource-spec
   (with-open [ds (hikari/make-datasource {:adapter "h2" :url "jdbc:h2:/tmp/test"})]
@@ -46,16 +46,12 @@
         c2 (jdbc/connection h2-dbspec2)
         c3 (jdbc/connection h2-dbspec3)
         c4 (jdbc/connection pg-dbspec-pretty)
-        c5 (jdbc/connection pg-dbspec-uri-1)
-        c6 (jdbc/connection pg-dbspec-uri-2)
-        c7 (jdbc/connection pg-dbspec-uri-3)]
+        c5 (jdbc/connection pg-dbspec-uri-1)]
     (is (satisfies? proto/IConnection c1))
     (is (satisfies? proto/IConnection c2))
     (is (satisfies? proto/IConnection c3))
     (is (satisfies? proto/IConnection c4))
-    (is (satisfies? proto/IConnection c5))
-    (is (satisfies? proto/IConnection c6))
-    (is (satisfies? proto/IConnection c7))))
+    (is (satisfies? proto/IConnection c5))))
 
 (deftest db-isolation-level-1
   (let [c1 (-> (jdbc/connection h2-dbspec4)
@@ -85,6 +81,39 @@
     (jdbc/atomic conn {:read-only true}
       (is (true? (.isReadOnly (proto/connection conn)))))
     (is (false? (.isReadOnly (proto/connection conn))))))
+
+(deftest query-timeout
+  (with-open [conn (jdbc/connection pg-dbspec)]
+    (try
+      (jdbc/execute conn "select pg_sleep(60);" {:timeout 1})
+      (catch BatchUpdateException e
+        (is (= 0 (.getErrorCode e))))
+      (catch PSQLException e
+        (is (= 0 (.getErrorCode e)))))
+    (try
+      (jdbc/execute conn ["select pg_sleep(60);"] {:timeout 1})
+      (catch BatchUpdateException e
+        (is (= 0 (.getErrorCode e))))
+      (catch PSQLException e
+        (is (= 0 (.getErrorCode e)))))
+    (try
+      (jdbc/fetch conn ["select pg_sleep(5);"] {:timeout 1})
+      (catch BatchUpdateException e
+        (is (= 0 (.getErrorCode e))))
+      (catch PSQLException e
+        (is (= 0 (.getErrorCode e)))))
+    (try
+      (jdbc/fetch-one conn ["select pg_sleep(5);"] {:timeout 1})
+      (catch BatchUpdateException e
+        (is (= 0 (.getErrorCode e))))
+      (catch PSQLException e
+        (is (= 0 (.getErrorCode e)))))
+    (try
+      (jdbc/fetch-lazy conn ["select pg_sleep(5);"] {:timeout 1})
+      (catch BatchUpdateException e
+        (is (= 0 (.getErrorCode e))))
+      (catch PSQLException e
+        (is (= 0 (.getErrorCode e)))))))
 
 (deftest db-commands-2
   (with-open [conn (jdbc/connection pg-dbspec)]
@@ -146,8 +175,7 @@
   (with-open [conn (jdbc/connection h2-dbspec3)]
     (let [stmt (jdbc/prepared-statement conn ["select ? as foo;" 2])
           result (jdbc/fetch conn stmt)]
-      (is (= [{:foo 2}] result))))
-)
+      (is (= [{:foo 2}] result)))))
 
 
 (deftest lazy-queries
@@ -318,8 +346,7 @@
 
       (let [results (jdbc/fetch conn [sql3])]
         (is (= (count results) 0))))
-
-
+  
     ;; Subtransactions
     (with-open [conn (jdbc/connection h2-dbspec3)]
       (jdbc/execute conn sql1)

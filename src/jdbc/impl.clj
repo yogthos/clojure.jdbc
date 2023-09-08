@@ -133,9 +133,8 @@
 
 (extend-protocol proto/IExecute
   java.lang.String
-  (execute [sql conn {:keys [timeout]}] 
+  (execute [sql conn _opts] 
     (with-open [^PreparedStatement stmt (.createStatement ^Connection conn)]
-      (when timeout (.setQueryTimeout stmt timeout))
       (.addBatch stmt ^String sql)
       (seq (.executeBatch stmt))))
 
@@ -192,7 +191,7 @@
   PreparedStatement
   (prepared-statement [o _ _] o))
 
-(defn- prepared-statement*
+(defn prepared-statement*
   "Given connection and query, return a prepared statement."
   ([^Connection conn sqlvec] (prepared-statement* conn sqlvec {}))
   ([^Connection conn sqlvec {:keys [result-type result-concurrency fetch-size

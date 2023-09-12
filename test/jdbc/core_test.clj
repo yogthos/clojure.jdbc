@@ -85,31 +85,30 @@
 (deftest query-timeout
   (with-open [conn (jdbc/connection pg-dbspec)]
     (try
-      (jdbc/execute conn "select pg_sleep(60);" {:timeout 1})
-      (catch BatchUpdateException e
-        (is (= 0 (.getErrorCode e))))
-      (catch PSQLException e
-        (is (= 0 (.getErrorCode e)))))
-    (try
-      (jdbc/execute conn ["select pg_sleep(60);"] {:timeout 1})
+      (jdbc/execute conn "select pg_sleep(5);" {:timeout 1})
+      (is (= 1 0) "failed timeout for execute")
       (catch BatchUpdateException e
         (is (= 0 (.getErrorCode e))))
       (catch PSQLException e
         (is (= 0 (.getErrorCode e)))))
     (try
       (jdbc/fetch conn ["select pg_sleep(5);"] {:timeout 1})
+      (is (= 1 0) "failed timeout for fetch")
       (catch BatchUpdateException e
         (is (= 0 (.getErrorCode e))))
       (catch PSQLException e
         (is (= 0 (.getErrorCode e)))))
     (try
       (jdbc/fetch-one conn ["select pg_sleep(5);"] {:timeout 1})
+      (is (= 1 0) "failed timeout for fetch-one")
       (catch BatchUpdateException e
         (is (= 0 (.getErrorCode e))))
       (catch PSQLException e
         (is (= 0 (.getErrorCode e)))))
     (try
-      (jdbc/fetch-lazy conn ["select pg_sleep(5);"] {:timeout 1})
+      (with-open [cursor (jdbc/fetch-lazy conn ["select pg_sleep(5);"] {:timeout 1})]
+        (vec (jdbc/cursor->lazyseq cursor))
+        (is (= 1 0) "failed timeout for fetch-lazy"))
       (catch BatchUpdateException e
         (is (= 0 (.getErrorCode e))))
       (catch PSQLException e
@@ -229,9 +228,9 @@
         sql2 "INSERT INTO foo (name,age) VALUES (?, ?);"
         sql3 "SELECT age FROM foo;"
         strategy (reify proto/ITransactionStrategy
-                   (begin! [_ conn opts] conn)
-                   (rollback! [_ conn opts] nil)
-                   (commit! [_ conn opts] nil))
+                   (begin! [_ conn _opts] conn)
+                   (rollback! [_ _conn _opts] nil)
+                   (commit! [_ _conn _opts] nil))
         dbspec (assoc h2-dbspec3 :tx-strategy strategy)]
     (with-open [conn (jdbc/connection dbspec)]
       (is (identical? (:tx-strategy (meta conn)) strategy))
@@ -244,7 +243,7 @@
             (is (= (count results) 2))
             (throw (RuntimeException. "Fooo"))))
 
-        (catch Exception e
+        (catch Exception _e
           (let [results (jdbc/fetch conn sql3)]
             (is (= (count results) 2))))))))
 
@@ -362,6 +361,58 @@
             (let [results (jdbc/fetch conn [sql3])]
               (is (= (count results) 4))
               (throw (RuntimeException. "Fooo"))))
-          (catch Exception e
+          (catch Exception _e
             (let [results (jdbc/fetch conn [sql3])]
               (is (= (count results) 2)))))))))
+
+(deftest insert-test
+  (with-open [conn (jdbc/connection pg-dbspec)]
+    (jdbc/atomic conn
+                 (jdbc/set-rollback! conn)
+                 (jdbc/execute conn "CREATE TABLE inserts (id integer, value text);")
+                 (jdbc/insert! conn :inserts {:id 1 :value "foo"})
+                 (is (= [{:id 1 :value "foo"}] (jdbc/fetch conn ["select * from inserts where id = ?" 1]))))))
+
+(deftest insert-multi-test
+  (with-open [conn (jdbc/connection pg-dbspec)]
+    (jdbc/atomic conn
+                 (jdbc/set-rollback! conn)
+                 (jdbc/execute conn "CREATE TABLE inserts (id integer, value text);")
+                 (jdbc/insert-multi! conn :inserts [{:id 1 :value "foo"}
+                                                    {:id 2 :value "foo"}])
+                 (is (= [{:id 1, :value "foo"} {:id 2, :value "foo"}] 
+                        (jdbc/fetch conn ["select * from inserts"])))
+                 (is (= [{:id 3 :value "bar"}
+                         {:id 4 :value "baz"}]
+                        (jdbc/insert-multi! conn :inserts
+                                            [{:id 3 :value "bar"}
+                                             {:id 4 :value "baz"}]
+                                            {:returning true})))
+                 (is
+                  (= [2 3 4]
+                     (jdbc.core/insert-multi! conn :inserts
+                                              [{:id 2}
+                                               {:id 3}
+                                               {:id 4}]
+                                              {:returning true
+                                               :row-fn :id}))))))
+
+(deftest update-test
+  (with-open [conn (jdbc/connection pg-dbspec)]
+    (jdbc/atomic conn
+                 (jdbc/set-rollback! conn)
+                 (jdbc/execute conn "CREATE TABLE updates (id integer, value text);")
+                 (jdbc/insert! conn :updates {:id 1 :value "foo"})
+                 (jdbc/update! conn :updates {:value "bar"} ["id = ?" 1])
+                 (is (= [{:id 1, :value "bar"}]
+                        (jdbc/fetch conn ["select * from updates where id = ?" 1]))))))
+
+(deftest delete-test
+  (with-open [conn (jdbc/connection pg-dbspec)]
+    (jdbc/atomic conn
+                 (jdbc/set-rollback! conn)
+                 (jdbc/execute conn "CREATE TABLE deletes (id integer, value text);")
+                 (jdbc/insert! conn :deletes {:id 1 :value "foo"})
+                 (jdbc/delete! conn :deletes ["id = ?" 1])
+                 (is (= []
+                        (jdbc/fetch conn ["select * from deletes where id = ?" 1]))))))

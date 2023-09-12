@@ -61,8 +61,7 @@
 
 (defn- dbspec->connection
   "Create a connection instance from dbspec."
-  [{:keys [subprotocol subname user password
-           name vendor host port datasource classname]
+  [{:keys [subprotocol subname name vendor host port datasource classname]
     :as dbspec}]
   (cond
     (and name vendor)
@@ -133,14 +132,16 @@
 
 (extend-protocol proto/IExecute
   java.lang.String
-  (execute [sql conn _opts] 
+  (execute [sql conn {:keys [timeout]}] 
     (with-open [^PreparedStatement stmt (.createStatement ^Connection conn)]
+      (when timeout (.setQueryTimeout stmt timeout))
       (.addBatch stmt ^String sql)
       (seq (.executeBatch stmt))))
 
   clojure.lang.IPersistentVector
-  (execute [sqlvec conn opts]
+  (execute [sqlvec conn {:keys [timeout] :as opts}]
     (with-open [^PreparedStatement stmt (proto/prepared-statement sqlvec conn opts)]
+      (when timeout (.setQueryTimeout stmt timeout))
       (let [counts (.executeUpdate stmt)]
         (if (:returning opts)
           (with-open [rs (.getGeneratedKeys stmt)]
@@ -148,7 +149,8 @@
           counts))))
 
   PreparedStatement
-  (execute [^PreparedStatement stmt ^Connection _conn _opts]
+  (execute [^PreparedStatement stmt ^Connection _conn {:keys [timeout]}]
+    (when timeout (.setQueryTimeout stmt timeout))
     (.executeUpdate stmt)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -157,19 +159,22 @@
 
 (extend-protocol proto/IFetch
   java.lang.String
-  (fetch [^String sql ^Connection conn opts]
+  (fetch [^String sql ^Connection conn {:keys [timeout] :as opts}]
     (with-open [^PreparedStatement stmt (proto/prepared-statement sql conn opts)]
+      (when timeout (.setQueryTimeout stmt timeout))
       (let [^ResultSet rs (.executeQuery stmt)]
         (result-set->vector conn rs opts))))
 
   clojure.lang.IPersistentVector
-  (fetch [^clojure.lang.IPersistentVector sqlvec ^Connection conn opts]
+  (fetch [^clojure.lang.IPersistentVector sqlvec ^Connection conn {:keys [timeout] :as opts}]
     (with-open [^PreparedStatement stmt (proto/prepared-statement sqlvec conn opts)]
+      (when timeout (.setQueryTimeout stmt timeout))
       (let [^ResultSet rs (.executeQuery stmt)]
         (result-set->vector conn rs opts))))
 
   PreparedStatement
-  (fetch [^PreparedStatement stmt ^Connection conn opts]
+  (fetch [^PreparedStatement stmt ^Connection conn {:keys [timeout] :as opts}]
+    (when timeout (.setQueryTimeout stmt timeout))
     (let [^ResultSet rs (.executeQuery stmt)]
       (result-set->vector conn rs opts))))
 
@@ -190,6 +195,12 @@
 
   PreparedStatement
   (prepared-statement [o _ _] o))
+
+(defn set-params [conn stmt params]
+  (when (seq params)
+    (->> params
+         (map-indexed #(proto/set-stmt-parameter! %2 conn stmt (inc %1)))
+         (dorun))))
 
 (defn prepared-statement*
   "Given connection and query, return a prepared statement."
@@ -224,10 +235,7 @@
      (when fetch-size (.setFetchSize stmt fetch-size))
      (when max-rows (.setMaxRows stmt max-rows))
      (when timeout (.setQueryTimeout stmt timeout))
-     (when (seq params)
-       (->> params
-            (map-indexed #(proto/set-stmt-parameter! %2 conn stmt (inc %1)))
-            (dorun)))
+     (set-params conn stmt params)
      stmt)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

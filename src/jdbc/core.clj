@@ -15,6 +15,8 @@
 (ns jdbc.core
   "Alternative implementation of jdbc wrapper for clojure."
   (:require 
+   [jdbc.insert :as insert]
+   [jdbc.util :as util]
    [jdbc.types :as types]
    [jdbc.impl :as impl]
    [jdbc.proto :as proto]
@@ -181,6 +183,75 @@
   ([cursor] (impl/cursor->lazyseq cursor {}))
   ([cursor opts] (impl/cursor->lazyseq cursor opts)))
 
+(defn insert!
+  "Given a database connection, a table name and a map representing a rows,
+  perform an insert.
+  
+  The result is the database-specific form of the generated keys, if available
+  (note: PostgreSQL returns the whole row).
+  
+  The row map or column value vector may be followed by a map of options:
+  The :entities option specifies how to convert the table name and column names
+  to SQL entities."
+  ([conn table row] (insert! conn table row {}))
+  ([conn table row opts]
+   (insert/insert-rows! (proto/connection conn) table [row] opts)))
+
+(defn insert-multi!
+  "Given a database connection, a table name and a sequence of maps for
+  rows, and possibly a map of options, insert that data into
+  the database.
+
+  The result is a sequence of the generated keys, if available (note: PostgreSQL
+  returns the whole rows). A single database operation should be used to insert
+  all the rows at once using executeBatch.
+  
+  Note: some database drivers need to be told to rewrite the SQL for this to
+  be performed as a single, batched operation. In particular, PostgreSQL
+  requires :reWriteBatchedInserts true and My SQL requires
+  :rewriteBatchedStatement true (both non-standard JDBC options, of course!).
+  These options should be passed into the driver when the connection is
+  created (however that is done in your program).
+
+  The :entities option specifies how to convert the table name and column
+  names to SQL entities."
+  ([conn table rows] (insert/insert-rows! (proto/connection conn) table rows {}))
+  ([conn table rows opts]
+   (insert/insert-rows! (proto/connection conn) table rows opts)))
+
+(defn update!
+  "Given a database connection, a table name, a map of column values to set and a
+  where clause of columns to match, perform an update. The options may specify
+  how column names (in the set / match maps) should be transformed (default
+  'as-is') and whether to run the update in a transaction (default true).
+  Example:
+    (update! db :person {:zip 94540} [\"zip = ?\" 94546])
+  is equivalent to:
+    (execute! db [\"UPDATE person SET zip = ? WHERE zip = ?\" 94540 94546])"
+  ([conn table set-map where-clause] (update! conn table set-map where-clause {}))
+  ([conn table set-map where-clause opts]
+   (let [{:keys [entities] :as opts}
+         (merge {:entities identity} opts)]
+     (execute (proto/connection conn) (util/update-sql table set-map where-clause entities) opts))))
+
+(defn delete!
+  "Given a database connection, a table name and a where clause of columns to match,
+  perform a delete. The options may specify how to transform column names in the
+  map (default 'as-is') and whether to run the delete in a transaction (default true).
+  Example:
+    (delete! db :person [\"zip = ?\" 94546])
+  is equivalent to:
+    (execute! db [\"DELETE FROM person WHERE zip = ?\" 94546])"
+  ([conn table where-clause] (delete! conn table where-clause {}))
+  ([conn table where-clause opts]
+   (let [{:keys [entities] :as opts}
+         (merge {:entities identity} opts)
+         delete-sql (fn delete-sql 
+                      [table [where & params] entities]
+                      (into [(str "DELETE FROM " (util/table-str table entities)
+                                  (when where " WHERE ") where)]
+                            params))]
+     (execute (proto/connection conn) (delete-sql table where-clause entities) opts))))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Transactions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

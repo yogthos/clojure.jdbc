@@ -1,6 +1,6 @@
 # clojure.jdbc
 
-A JDBC library for Clojure for low level, jdbc-based database access..
+A low level JDBC library for Clojure, jdbc-based database access..
 
 ![Test Badge](https://github.com/yogthos/clojure.jdbc/actions/workflows/main.yml/badge.svg)
 

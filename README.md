@@ -176,7 +176,7 @@ that are explained in the [Advanced usage](#server-side-cursors) section.
 
 ### Query helpers
 
-The library provides server query helper functions for common operations.
+The library provides serveral query helper functions for common operations.
 
 #### insert!
 

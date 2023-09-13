@@ -114,14 +114,14 @@
    (let [conn (proto/connection conn)]
      (proto/prepared-statement sqlvec conn options))))
 
-(defn execute
+(defn execute!
   "Execute a query and return a number of rows affected.
 
       (with-open [conn (jdbc/connection dbspec)]
         (jdbc/execute conn \"create table foo (id integer);\"))
 
   This function also accepts sqlvec format."
-  ([conn q] (execute conn q {}))
+  ([conn q] (execute! conn q {}))
   ([conn q opts]
    (let [rconn (proto/connection conn)]
      (proto/execute q rconn opts))))
@@ -141,7 +141,7 @@
      (proto/fetch q rconn opts))))
 
 (defn fetch-one
-  "Fetch eagerly one restult executing a query."
+  "Fetch eagerly one result executing a query."
   ([conn q] (fetch-one conn q {}))
   ([conn q opts]
    (first (fetch conn q opts))))
@@ -232,7 +232,8 @@
   ([conn table set-map where-clause opts]
    (let [{:keys [entities] :as opts}
          (merge {:entities identity} opts)]
-     (execute (proto/connection conn) (util/update-sql table set-map where-clause entities) opts))))
+     (prn (util/update-sql table set-map where-clause entities))
+     (execute! (proto/connection conn) (util/update-sql table set-map where-clause entities) opts))))
 
 (defn delete!
   "Given a database connection, a table name and a where clause of columns to match,
@@ -251,7 +252,7 @@
                       (into [(str "DELETE FROM " (util/table-str table entities)
                                   (when where " WHERE ") where)]
                             params))]
-     (execute (proto/connection conn) (delete-sql table where-clause entities) opts))))
+     (execute! (proto/connection conn) (delete-sql table where-clause entities) opts))))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Transactions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -2,7 +2,8 @@
   (:require [jdbc.core :as jdbc]
             [jdbc.proto :as proto]
             [hikari-cp.core :as hikari]
-            [clojure.test :refer :all])
+            [clojure.test :refer :all]
+            [clojure.string :as str])
   (:import java.sql.BatchUpdateException
            org.postgresql.util.PSQLException))
 
@@ -85,7 +86,7 @@
 (deftest query-timeout
   (with-open [conn (jdbc/connection pg-dbspec)]
     (try
-      (jdbc/execute conn "select pg_sleep(5);" {:timeout 1})
+      (jdbc/execute! conn "select pg_sleep(5);" {:timeout 1})
       (is (= 1 0) "failed timeout for execute")
       (catch BatchUpdateException e
         (is (= 0 (.getErrorCode e))))
@@ -118,7 +119,7 @@
   (with-open [conn (jdbc/connection pg-dbspec)]
     (jdbc/atomic conn
       (jdbc/set-rollback! conn)
-      (jdbc/execute conn "create table foo2 (id serial, age integer);")
+      (jdbc/execute! conn "create table foo2 (id serial, age integer);")
       (let [result (jdbc/fetch conn ["insert into foo2 (age) values (?) returning id" 1])]
         (is (= result [{:id 1}])))))
 
@@ -127,22 +128,22 @@
       (jdbc/set-rollback! conn)
       (let [sql1 "CREATE TABLE foo (id integer primary key, age integer);"
             sql2 ["INSERT INTO foo (id, age) VALUES (?,?), (?,?);" 1 1 2 2]]
-        (jdbc/execute conn sql1)
-        (let [result (jdbc/execute conn sql2 {:returning true})]
+        (jdbc/execute! conn sql1)
+        (let [result (jdbc/execute! conn sql2 {:returning true})]
           (is (= result [{:id 1, :age 1} {:id 2, :age 2}])))))))
 
 (deftest db-commands
   ;; Simple statement
   (with-open [conn (jdbc/connection h2-dbspec3)]
     (let [sql "CREATE TABLE foo (name varchar(255), age integer);"
-          r   (jdbc/execute conn sql)]
+          r   (jdbc/execute! conn sql)]
       (is (= (list 0) r))))
 
   ;; Statement with exception
   (with-open [conn (jdbc/connection h2-dbspec3)]
     (let [sql "CREATE TABLE foo (name varchar(255), age integer);"]
-      (jdbc/execute conn sql)
-      (is (thrown? org.h2.jdbc.JdbcBatchUpdateException (jdbc/execute conn sql)))))
+      (jdbc/execute! conn sql)
+      (is (thrown? org.h2.jdbc.JdbcBatchUpdateException (jdbc/execute! conn sql)))))
 
   ;; Fetch from simple query
   (with-open [conn (jdbc/connection h2-dbspec3)]
@@ -191,8 +192,8 @@
         inputStream  (java.io.ByteArrayInputStream. buffer)
         sql          "CREATE TABLE foo (id integer, data bytea);"]
     (with-open [conn (jdbc/connection h2-dbspec3)]
-      (jdbc/execute conn sql)
-      (let [res (jdbc/execute conn ["INSERT INTO foo (id, data) VALUES (?, ?);" 1 inputStream])]
+      (jdbc/execute! conn sql)
+      (let [res (jdbc/execute! conn ["INSERT INTO foo (id, data) VALUES (?, ?);" 1 inputStream])]
         (is (= res 1)))
       (let [res (jdbc/fetch-one conn "SELECT * FROM foo")]
         (is (instance? (Class/forName "[B") (:data res)))
@@ -213,8 +214,8 @@
       (jdbc/set-rollback! conn)
       (let [sql "CREATE TABLE arrayfoo (id integer, data text[]);"
             dat (into-array String ["foo", "bar"])]
-        (jdbc/execute conn sql)
-        (let [res (jdbc/execute conn ["INSERT INTO arrayfoo (id, data) VALUES (?, ?);" 1, dat])]
+        (jdbc/execute! conn sql)
+        (let [res (jdbc/execute! conn ["INSERT INTO arrayfoo (id, data) VALUES (?, ?);" 1, dat])]
           (is (= res 1)))
 
         (let [res (jdbc/fetch-one conn "SELECT * FROM arrayfoo")
@@ -234,11 +235,11 @@
         dbspec (assoc h2-dbspec3 :tx-strategy strategy)]
     (with-open [conn (jdbc/connection dbspec)]
       (is (identical? (:tx-strategy (meta conn)) strategy))
-      (jdbc/execute conn sql1)
+      (jdbc/execute! conn sql1)
       (try
         (jdbc/atomic conn
-          (jdbc/execute conn [sql2 "foo" 1])
-          (jdbc/execute conn [sql2 "bar" 2])
+          (jdbc/execute! conn [sql2 "foo" 1])
+          (jdbc/execute! conn [sql2 "bar" 2])
           (let [results (jdbc/fetch conn sql3)]
             (is (= (count results) 2))
             (throw (RuntimeException. "Fooo"))))
@@ -255,12 +256,12 @@
 
     ;; Basic transaction test with exception.
     (with-open [conn (jdbc/connection h2-dbspec3)]
-      (jdbc/execute conn sql1)
+      (jdbc/execute! conn sql1)
 
       (try
         (jdbc/atomic conn
-          (jdbc/execute conn [sql2 "foo" 1])
-          (jdbc/execute conn [sql2 "bar" 2])
+          (jdbc/execute! conn [sql2 "foo" 1])
+          (jdbc/execute! conn [sql2 "bar" 2])
 
           (let [results (jdbc/fetch conn sql3)]
               (is (= (count results) 2))
@@ -271,11 +272,11 @@
 
     ;; Basic transaction test without exception.
     (with-open [conn (jdbc/connection h2-dbspec3)]
-      (jdbc/execute conn sql1)
+      (jdbc/execute! conn sql1)
 
       (jdbc/atomic conn
-        (jdbc/execute conn [sql2 "foo" 1])
-        (jdbc/execute conn [sql2 "bar" 2]))
+        (jdbc/execute! conn [sql2 "foo" 1])
+        (jdbc/execute! conn [sql2 "bar" 2]))
 
         (jdbc/atomic conn
           (let [results (jdbc/fetch conn sql3)]
@@ -303,16 +304,16 @@
 
     ;; Set rollback 01
     (with-open [conn (jdbc/connection h2-dbspec3)]
-        (jdbc/execute conn sql1)
+        (jdbc/execute! conn sql1)
 
         (jdbc/atomic conn
-        (jdbc/execute conn [sql2 "foo" 1])
-        (jdbc/execute conn [sql2 "bar" 2])
+        (jdbc/execute! conn [sql2 "foo" 1])
+        (jdbc/execute! conn [sql2 "bar" 2])
         (is (false? @(:rollback (meta conn))))
 
         (jdbc/atomic conn
-          (jdbc/execute conn [sql2 "foo" 1])
-          (jdbc/execute conn [sql2 "bar" 2])
+          (jdbc/execute! conn [sql2 "foo" 1])
+          (jdbc/execute! conn [sql2 "bar" 2])
           (jdbc/set-rollback! conn)
           (is (true? @(:rollback (meta conn))))
           (let [results (jdbc/fetch conn sql3)]
@@ -323,20 +324,20 @@
 
     ;; Set rollback 02
     (with-open [conn (jdbc/connection h2-dbspec3)]
-      (jdbc/execute conn sql1)
+      (jdbc/execute! conn sql1)
 
       (jdbc/atomic conn
         (jdbc/set-rollback! conn)
-        (jdbc/execute conn [sql2 "foo" 1])
-        (jdbc/execute conn [sql2 "bar" 2])
+        (jdbc/execute! conn [sql2 "foo" 1])
+        (jdbc/execute! conn [sql2 "bar" 2])
 
         (is (true? @(:rollback (meta conn))))
 
         (jdbc/atomic conn
           (is (false? @(:rollback (meta conn))))
 
-          (jdbc/execute conn [sql2 "foo" 1])
-          (jdbc/execute conn [sql2 "bar" 2])
+          (jdbc/execute! conn [sql2 "foo" 1])
+          (jdbc/execute! conn [sql2 "bar" 2])
           (let [results (jdbc/fetch conn sql3)]
             (is (= (count results) 4))))
 
@@ -348,16 +349,16 @@
   
     ;; Subtransactions
     (with-open [conn (jdbc/connection h2-dbspec3)]
-      (jdbc/execute conn sql1)
+      (jdbc/execute! conn sql1)
 
       (jdbc/atomic conn
-        (jdbc/execute conn [sql2 "foo" 1])
-        (jdbc/execute conn [sql2 "bar" 2])
+        (jdbc/execute! conn [sql2 "foo" 1])
+        (jdbc/execute! conn [sql2 "bar" 2])
 
         (try
           (jdbc/atomic conn
-            (jdbc/execute conn [sql2 "foo" 1])
-            (jdbc/execute conn [sql2 "bar" 2])
+            (jdbc/execute! conn [sql2 "foo" 1])
+            (jdbc/execute! conn [sql2 "bar" 2])
             (let [results (jdbc/fetch conn [sql3])]
               (is (= (count results) 4))
               (throw (RuntimeException. "Fooo"))))
@@ -369,15 +370,19 @@
   (with-open [conn (jdbc/connection pg-dbspec)]
     (jdbc/atomic conn
                  (jdbc/set-rollback! conn)
-                 (jdbc/execute conn "CREATE TABLE inserts (id integer, value text);")
-                 (jdbc/insert! conn :inserts {:id 1 :value "foo"})
-                 (is (= [{:id 1 :value "foo"}] (jdbc/fetch conn ["select * from inserts where id = ?" 1]))))))
+                 (jdbc/execute! conn "CREATE TABLE inserts (id integer, value text);")
+                 (is (= [1] (jdbc/insert! conn :inserts {:id 1 :value "foo"})))
+                 (is (= [{:id 1 :value "foo"}] (jdbc/fetch conn ["select * from inserts where id = ?" 1]))))
+    (jdbc/atomic conn
+                 (jdbc/set-rollback! conn)
+                 (jdbc/execute! conn "CREATE TABLE inserts (id integer, value text);")
+                 (is (= [{:id 1 :value "foo"}] (jdbc/insert! conn :inserts {:id 1 :value "foo"} {:returning true}))))))
 
 (deftest insert-multi-test
   (with-open [conn (jdbc/connection pg-dbspec)]
     (jdbc/atomic conn
                  (jdbc/set-rollback! conn)
-                 (jdbc/execute conn "CREATE TABLE inserts (id integer, value text);")
+                 (jdbc/execute! conn "CREATE TABLE inserts (id integer, value text);")
                  (jdbc/insert-multi! conn :inserts [{:id 1 :value "foo"}
                                                     {:id 2 :value "foo"}])
                  (is (= [{:id 1, :value "foo"} {:id 2, :value "foo"}] 
@@ -401,7 +406,7 @@
   (with-open [conn (jdbc/connection pg-dbspec)]
     (jdbc/atomic conn
                  (jdbc/set-rollback! conn)
-                 (jdbc/execute conn "CREATE TABLE updates (id integer, value text);")
+                 (jdbc/execute! conn "CREATE TABLE updates (id integer, value text);")
                  (jdbc/insert! conn :updates {:id 1 :value "foo"})
                  (jdbc/update! conn :updates {:value "bar"} ["id = ?" 1])
                  (is (= [{:id 1, :value "bar"}]
@@ -411,8 +416,9 @@
   (with-open [conn (jdbc/connection pg-dbspec)]
     (jdbc/atomic conn
                  (jdbc/set-rollback! conn)
-                 (jdbc/execute conn "CREATE TABLE deletes (id integer, value text);")
+                 (jdbc/execute! conn "CREATE TABLE deletes (id integer, value text);")
                  (jdbc/insert! conn :deletes {:id 1 :value "foo"})
                  (jdbc/delete! conn :deletes ["id = ?" 1])
                  (is (= []
                         (jdbc/fetch conn ["select * from deletes where id = ?" 1]))))))
+

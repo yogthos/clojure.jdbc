@@ -43,7 +43,7 @@
                        ;; sqlite (and maybe others?) requires
                        ;; record set to be closed
                                   (.close rs)
-                                  result)
+                                  (or result (first counts)))
                                 (catch Exception _
                        ;; assume generated keys is unsupported and return counts instead:
                                   (let [result-set-fn (or (:result-set-fn opts) doall)]
@@ -73,24 +73,11 @@
    inserts), run a prepared statement on each and return any generated keys.
    Note: we are eager so an unrealized lazy-seq cannot escape from the connection."
   [conn stmts opts]
-  (let [{:keys [as-arrays? result-set-fn]} opts
+  (let [{:keys [result-set-fn]} opts
         per-statement (fn [stmt] (db-do-prepared-return-keys conn stmt opts))]
-    (if as-arrays?
-      (let [rs (map per-statement stmts)]
-        (cond (apply = (map first rs))
-              ;; all the columns are the same, rearrange to cols + rows format
-              ((or result-set-fn vec)
-               (cons (ffirst rs)
-                     (map second rs)))
-              result-set-fn
-              (throw (ex-info (str "Cannot apply result-set-fn to"
-                                   " non-homogeneous generated keys array") {:rs rs}))
-              :else
-              ;; non-non-homogeneous generated keys array - return as-is
-              rs))
-      (if result-set-fn
-        (result-set-fn (map per-statement stmts))
-        (seq (mapv per-statement stmts))))))
+    (if result-set-fn
+      (result-set-fn (map per-statement stmts))
+      (seq (mapv per-statement stmts)))))
 
 (defn col-str
   "Transform a column spec to an entity name for SQL. The column spec may be a

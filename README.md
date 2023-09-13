@@ -474,8 +474,9 @@ an little example:
 HikariCP, unlike other datasource implementations, requires to setup explicitly that adapter should
 be used. This is a list of supported adapters:
 
-|============================================================================
+
 | Adapter           | Datasource class name
+|-------------------|---------------------------------------
 | `:derby`          | `org.apache.derby.jdbc.ClientDataSource`
 | `:firebird`       | `org.firebirdsql.pool.FBSimpleDataSource`
 | `:db2`            | `com.ibm.db2.jcc.DB2SimpleDataSource`
@@ -489,7 +490,7 @@ be used. This is a list of supported adapters:
 | `:pgjdbc-ng`      | `com.impossibl.postgres.jdbc.PGDataSource`
 | `:postgresql`     | `org.postgresql.ds.PGSimpleDataSource`
 | `:sybase`         | `com.sybase.jdbcx.SybDataSource`
-|============================================================================
+
 
 Now, the new created datasource should be used like a plain dbspec for creating connections:
 

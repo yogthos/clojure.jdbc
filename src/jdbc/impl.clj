@@ -231,7 +231,7 @@
                (.prepareStatement conn sql
                                   (result-type constants/resultset-options)
                                   (result-concurrency constants/resultset-options)))]     
-     ;; Set fetch-size and max-rows if provided by user
+     ;; Set fetch-size, max-rows, and timeout if provided by user
      (when fetch-size (.setFetchSize stmt fetch-size))
      (when max-rows (.setMaxRows stmt max-rows))
      (when timeout (.setQueryTimeout stmt timeout))

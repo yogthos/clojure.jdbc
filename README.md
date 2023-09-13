@@ -89,6 +89,24 @@ an active connection followed by the SQL string:
   (jdbc/execute! conn "CREATE TABLE foo (id serial, name text);"))
 ```
 
+#### Query options
+
+Query functions can take an additional map of options as the last parameter. For example,
+if we wanted the query to timeout after 5 seconds, we could pass the `:timeout` flag to
+the query.
+
+```clojure
+(with-open [conn (jdbc/connection dbspec)]
+  (jdbc/execute! conn "CREATE TABLE foo (id serial, name text);" {:timeout 5}))
+```
+
+The options include
+
+* `:returning` - return the id of the inserted row
+* `:timeout` - timeout for query in seconds
+* `:max-rows` - max rows to be returned
+* `:fetch-size` - fetch size for the results
+
 #### Execute Parametrized SQL Statements
 
 Raw SQL statements work well for creating tables and similar operations. However,

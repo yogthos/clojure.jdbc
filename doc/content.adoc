@@ -495,112 +495,8 @@ Java ecosystem comes with various of it. This is a list of most used:
 - c3p0: http://www.mchange.com/projects/c3p0/
 - Apache DBCP2: http://commons.apache.org/proper/commons-dbcp/
 
-_clojure.jdbc_ is compatible with any other connection pool implemenetation, simply
+`clojure.jdbc` is compatible with any other connection pool implemenetation, simply
 pass a `javax.sql.DataSource` instance to `jdbc/connection` function.
-
-
-=== c3p0
-
-c3p0, a mature, highly concurrent JDBC connection pooling library for clojure.jdbc.
-
-.Dependency entry
-[source, clojure]
-----
-[com.mchange/c3p0 "0.9.5"]
-----
-
-In order to use this connection pool, previously you should create a DataSource instance. Here
-an little example on how it can be done:
-
-[source, clojure]
-----
-(import 'com.mchange.v2.c3p0.ComboPooledDataSource)
-
-(def ds (doto (ComboPooledDataSource.)
-          (.setJdbcUrl (str "jdbc:"
-                            (:subprotocol dbspec)
-                            ":"
-                            (:subname dbspec)))
-          (.setUser (:user dbspec nil))
-          (.setPassword (:password dbspec nil))
-
-          ;; Pool Size Management
-          (.setMinPoolSize 3)
-          (.setMaxPoolSize 15)
-
-          ;; Connection eviction
-          (.setMaxConnectionAge  3600) ; 1 hour
-          (.setMaxIdleTime 1800)       ; 1/2 hour
-          (.setMaxIdleTimeExcessConnections 120)
-
-          ;; Connection testing
-          (.setTestConnectionOnCheckin false)
-          (.setTestConnectionOnCheckout false)
-          (.setIdleConnectionTestPeriod 600)))
-----
-
-You can found all configuration parameters here: http://www.mchange.com/projects/c3p0/#configuration
-
-Now, the new created datasource should be used like a plain dbspec for creating connections:
-
-[source, clojure]
-----
-(with-open [conn (jdbc/connection ds)]
-  (do-stuff conn))
-----
-
-
-=== dbcp2
-
-Apache commons DBCP (JDBC) connection pool implementation for clojure.jdbc
-
-.Dependency entry
-[source, clojure]
-----
-[org.apache.commons/commons-dbcp2 "2.0.1"]
-----
-
-In order to use this connection pool, previously you should create a DataSource instance. Here
-an little example on how it can be done:
-
-[source, clojure]
-----
-(import 'org.apache.commons.dbcp2.BasicDataSource)
-
-(def ds (doto (BasicDataSource.)
-          (.setJdbcUrl (str "jdbc:"
-                            (:subprotocol dbspec)
-                            (:subname dbspec)))
-          (.setUser (:user dbspec nil))
-          (.setPassword (:password dbspec nil))
-
-          ;; Pool Size Management
-          (.setInitialSize 0)
-          (.setMaxIdle 3)
-          (.setMaxTotal 15)
-
-          ;; Connection eviction
-          (.setMaxConnLifetimeMillis 3600000) ; 1 hour
-
-          ;; Connection testing
-          (.setTestOnBorrow false)
-          (.setTestOnReturn false)
-          (.setTestWhileIdle true)
-          (.setTimeBetweenEvictionRunsMillis 600000) ;; 10 minutes
-          (.setNumTestsPerEvictionRun 4)
-          (.setMinEvictableIdleTimeMillis 1800000))) ;; 1/2 hours
-----
-
-You can found all configuration parameters here: http://commons.apache.org/proper/commons-dbcp/configuration.html
-
-Now, the new created datasource should be used like a plain dbspec for creating connections:
-
-[source, clojure]
-----
-(with-open [conn (jdbc/connection ds)]
-  (do-stuff conn))
-----
-
 
 === HikariCP
 
@@ -665,7 +561,7 @@ be used. This is a list of supported adapters:
 |============================================================================
 
 
-You can found more information and documentation about hikari-cp here:
+You can find more information and documentation about hikari-cp here:
 https://github.com/tomekw/hikari-cp
 
 Now, the new created datasource should be used like a plain dbspec for creating connections:

@@ -225,9 +225,9 @@
   how column names (in the set / match maps) should be transformed (default
   'as-is') and whether to run the update in a transaction (default true).
   Example:
-    (update! db :person {:zip 94540} [\"zip = ?\" 94546])
+    (update! conn :person {:zip 94540} [\"zip = ?\" 94546])
   is equivalent to:
-    (execute! db [\"UPDATE person SET zip = ? WHERE zip = ?\" 94540 94546])"
+    (execute! conn [\"UPDATE person SET zip = ? WHERE zip = ?\" 94540 94546])"
   ([conn table set-map where-clause] (update! conn table set-map where-clause {}))
   ([conn table set-map where-clause opts]
    (let [{:keys [entities] :as opts}

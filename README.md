@@ -36,7 +36,7 @@ This is the simplest and most idiomatic way in Clojure to define configuration p
 (def dbspec {:subprotocol "postgresql"
              :subname "//localhost:5432/dbname"
              :user "username"         ;; Optional
-             :password "password"}    ;; Optional
+             :password "password"})    ;; Optional
 ```
 
 Also, `clojure.jdbc` comes with alternative humanized format.

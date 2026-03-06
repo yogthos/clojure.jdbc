@@ -1,5 +1,29 @@
 = Changelog
 
+== Version 0.9.1
+
+Date: 2026-03-06
+
+- Add `insert!`, `insert-multi!`, `update!`, and `delete!` query helper functions.
+- Fix `execute!` with plain SQL string returning inconsistent type (now returns integer).
+- Fix `execute!` with sqlvec supporting `:returning` option to return generated keys.
+- Fix URI connection string parsing to preserve colons in passwords.
+- Fix URI querystring parsing to handle values containing `=`.
+- Fix internal dbspec keys (`:isolation-level`, `:read-only`, `:schema`, `:tx-strategy`) leaking to JDBC driver properties.
+- Fix `connection` to properly close on setup failure (isolation level, schema, read-only).
+- Fix `connection` to validate isolation level and throw `IllegalArgumentException` for invalid values.
+- Fix `connection` to correctly handle `false` value for `:read-only` option.
+- Fix `fetch-one` to pass `:max-rows 1` for query optimization.
+- Fix `prepared-statement*` to close statement if parameter binding fails.
+- Fix transaction `begin*` to validate isolation level.
+- Fix `update-sql` to not produce dangling `WHERE` clause for blank/nil where conditions.
+- Fix metadata `vendor-name` to use protocol function instead of map lookup.
+- Fix metadata `isolation-level` mapping for `:none` and `:read-committed` cases.
+- Fix `delete!` to omit `WHERE` clause when where string is blank.
+- Fix type hint on `createStatement` in string execute path.
+- Fix README code examples, broken links, and typos.
+
+
 == Version 0.9.0
 
 Date: 2016-05-20

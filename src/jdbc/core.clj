@@ -14,7 +14,8 @@
 
 (ns jdbc.core
   "Alternative implementation of jdbc wrapper for clojure."
-  (:require 
+  (:require
+   [clojure.string :as str]
    [jdbc.insert :as insert]
    [jdbc.util :as util]
    [jdbc.types :as types]
@@ -73,24 +74,30 @@
   ([dbspec options]
    (let [^Connection conn (proto/connection dbspec)
          options (merge (when (map? dbspec) dbspec) options)]
+     (try
+       ;; Set readonly flag if it found on the options map
+       (when (some? (:read-only options))
+         (.setReadOnly conn (boolean (:read-only options))))
 
-     ;; Set readonly flag if it found on the options map
-     (some->> (:read-only options)
-              (.setReadOnly conn))
+       ;; Set the concrete isolation level if it found
+       ;; on the options map
+       (when-let [level (:isolation-level options)]
+         (if-let [jdbc-level (get constants/isolation-levels level)]
+           (.setTransactionIsolation conn jdbc-level)
+           (throw (IllegalArgumentException.
+                   (str "Invalid isolation level: " level
+                        ". Must be one of: " (keys constants/isolation-levels))))))
 
-     ;; Set the concrete isolation level if it found
-     ;; on the options map
-     (some->> (:isolation-level options)
-              (get constants/isolation-levels)
-              (.setTransactionIsolation conn))
+       ;; Set the schema if it found on the options map
+       (some->> (:schema options)
+                (.setSchema conn))
 
-     ;; Set the schema if it found on the options map
-     (some->> (:schema options)
-              (.setSchema conn))
-
-     (let [tx-strategy (:tx-strategy options  *default-tx-strategy*)
-           metadata {:tx-strategy tx-strategy}]
-       (with-meta (types/->connection conn) metadata)))))
+       (let [tx-strategy (:tx-strategy options  *default-tx-strategy*)
+             metadata {:tx-strategy tx-strategy}]
+         (with-meta (types/->connection conn) metadata))
+       (catch Throwable t
+         (.close conn)
+         (throw t))))))
 
 (defn prepared-statement?
   "Check if specified object is prepared statement."
@@ -144,7 +151,7 @@
   "Fetch eagerly one result executing a query."
   ([conn q] (fetch-one conn q {}))
   ([conn q opts]
-   (first (fetch conn q opts))))
+   (first (fetch conn q (merge {:max-rows 1} opts)))))
 
 (defn fetch-lazy
   "Fetch lazily results executing a query.
@@ -232,8 +239,7 @@
   ([conn table set-map where-clause opts]
    (let [{:keys [entities] :as opts}
          (merge {:entities identity} opts)]
-     (prn (util/update-sql table set-map where-clause entities))
-     (execute! (proto/connection conn) (util/update-sql table set-map where-clause entities) opts))))
+      (execute! (proto/connection conn) (util/update-sql table set-map where-clause entities) opts))))
 
 (defn delete!
   "Given a database connection, a table name and a where clause of columns to match,
@@ -247,10 +253,10 @@
   ([conn table where-clause opts]
    (let [{:keys [entities] :as opts}
          (merge {:entities identity} opts)
-         delete-sql (fn delete-sql 
+         delete-sql (fn delete-sql
                       [table [where & params] entities]
                       (into [(str "DELETE FROM " (util/table-str table entities)
-                                  (when where " WHERE ") where)]
+                                  (when-not (str/blank? where) (str " WHERE " where)))]
                             params))]
      (execute! (proto/connection conn) (delete-sql table where-clause entities) opts))))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

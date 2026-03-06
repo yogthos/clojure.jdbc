@@ -74,7 +74,8 @@
 
     (and subprotocol subname)
     (let [url (format "jdbc:%s:%s" subprotocol subname)
-          options (dissoc dbspec :subprotocol :subname)]
+          options (dissoc dbspec :subprotocol :subname :classname
+                         :isolation-level :read-only :schema :tx-strategy)]
 
       (when classname
         (Class/forName classname))
@@ -88,7 +89,7 @@
     :else
     (throw (IllegalArgumentException. "Invalid dbspec format"))))
 
-(defn uri->dbspec
+(defn ^:private uri->dbspec
   "Parses a dbspec as uri into a plain dbspec. This function
   accepts `java.net.URI` or `String` as parameter."
   [^URI uri]
@@ -103,8 +104,8 @@
                  (str "//" host path))
        :subprotocol scheme}
       (when userinfo
-        (let [[user password] (str/split userinfo #":")]
-          {:user user :password password}))
+        (let [[user & password-parts] (str/split userinfo #":")]
+          {:user user :password (str/join ":" password-parts)}))
       (querystring->map uri))))
 
 (defn- querystring->map
@@ -113,7 +114,11 @@
   [^URI uri]
   (when-let [^String query (.getQuery uri)]
     (when-not (str/blank? query)
-     (->> (for [^String kvs (.split query "&")] (into [] (.split kvs "=")))
+     (->> (for [^String kvs (.split query "&")]
+            (let [idx (.indexOf kvs (int \=))]
+              (if (neg? idx)
+                [kvs ""]
+                [(.substring kvs 0 idx) (.substring kvs (inc idx))])))
           (into {})
           (walk/keywordize-keys)))))
 
@@ -132,16 +137,15 @@
 
 (extend-protocol proto/IExecute
   java.lang.String
-  (execute [sql conn {:keys [timeout]}] 
-    (with-open [^PreparedStatement stmt (.createStatement ^Connection conn)]
+  (execute [sql conn {:keys [timeout]}]
+    (with-open [^java.sql.Statement stmt (.createStatement ^Connection conn)]
       (when timeout (.setQueryTimeout stmt timeout))
       (.addBatch stmt ^String sql)
-      (seq (.executeBatch stmt))))
+      (first (.executeBatch stmt))))
 
   clojure.lang.IPersistentVector
-  (execute [sqlvec conn {:keys [timeout] :as opts}]
+  (execute [sqlvec conn opts]
     (with-open [^PreparedStatement stmt (proto/prepared-statement sqlvec conn opts)]
-      (when timeout (.setQueryTimeout stmt timeout))
       (let [counts (.executeUpdate stmt)]
         (if (:returning opts)
           (with-open [rs (.getGeneratedKeys stmt)]
@@ -159,16 +163,14 @@
 
 (extend-protocol proto/IFetch
   java.lang.String
-  (fetch [^String sql ^Connection conn {:keys [timeout] :as opts}]
+  (fetch [^String sql ^Connection conn opts]
     (with-open [^PreparedStatement stmt (proto/prepared-statement sql conn opts)]
-      (when timeout (.setQueryTimeout stmt timeout))
       (let [^ResultSet rs (.executeQuery stmt)]
         (result-set->vector conn rs opts))))
 
   clojure.lang.IPersistentVector
-  (fetch [^clojure.lang.IPersistentVector sqlvec ^Connection conn {:keys [timeout] :as opts}]
+  (fetch [^clojure.lang.IPersistentVector sqlvec ^Connection conn opts]
     (with-open [^PreparedStatement stmt (proto/prepared-statement sqlvec conn opts)]
-      (when timeout (.setQueryTimeout stmt timeout))
       (let [^ResultSet rs (.executeQuery stmt)]
         (result-set->vector conn rs opts))))
 
@@ -232,11 +234,15 @@
                                   (result-type constants/resultset-options)
                                   (result-concurrency constants/resultset-options)))]     
      ;; Set fetch-size, max-rows, and timeout if provided by user
-     (when fetch-size (.setFetchSize stmt fetch-size))
-     (when max-rows (.setMaxRows stmt max-rows))
-     (when timeout (.setQueryTimeout stmt timeout))
-     (set-params conn stmt params)
-     stmt)))
+     (try
+       (when fetch-size (.setFetchSize stmt fetch-size))
+       (when max-rows (.setMaxRows stmt max-rows))
+       (when timeout (.setQueryTimeout stmt timeout))
+       (set-params conn stmt params)
+       stmt
+       (catch Throwable t
+         (.close stmt)
+         (throw t))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Default implementation for type conversions
@@ -283,7 +289,11 @@
       (let [prev-autocommit (.getAutoCommit rconn)]
         (.setAutoCommit rconn false)
         (when-let [isolation (:isolation-level opts)]
-          (.setTransactionIsolation rconn (get constants/isolation-levels isolation)))
+          (if-let [jdbc-level (get constants/isolation-levels isolation)]
+            (.setTransactionIsolation rconn jdbc-level)
+            (throw (IllegalArgumentException.
+                    (str "Invalid isolation level: " isolation
+                         ". Must be one of: " (keys constants/isolation-levels))))))
         (when-let [read-only (:read-only opts)]
           (.setReadOnly rconn read-only))
         (with-meta conn

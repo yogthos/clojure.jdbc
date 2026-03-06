@@ -28,26 +28,28 @@
          (^{:once true} fn* []
                             (let [counts (if multi?
                                            (.executeBatch stmt)
-                                           (vector (.executeUpdate stmt)))]
-                              (try
-                                (let [rs (.getGeneratedKeys stmt)
-                                      result (cond multi?
+                                           (vector (.executeUpdate stmt)))
+                                  rs (try
+                                       (.getGeneratedKeys stmt)
+                                       (catch Exception _
+                                         ;; generated keys unsupported by driver
+                                         nil))]
+                              (if rs
+                                (let [result (cond multi?
                                                    (resultset/result-set->vector conn rs opts)
                                                    as-arrays?
                                                    ((^:once fn* [rs]
                                                                 (list (first rs)
                                                                       (row-fn (second rs))))
-                                                    (resultset/result-set->lazyseq conn rs opts))
+                                                    (resultset/result-set->lazyseq conn rs (assoc opts :as-rows? true :header? true)))
                                                    :else
                                                    (row-fn (first (resultset/result-set->lazyseq conn rs opts))))]
-                       ;; sqlite (and maybe others?) requires
-                       ;; record set to be closed
+                                  ;; sqlite (and maybe others?) requires
+                                  ;; record set to be closed
                                   (.close rs)
-                                  (or result (first counts)))
-                                (catch Exception _
-                       ;; assume generated keys is unsupported and return counts instead:
-                                  (let [result-set-fn (or (:result-set-fn opts) doall)]
-                                    (result-set-fn (map row-fn counts)))))))]
+                                  (if (some? result) result (first counts)))
+                                (let [result-set-fn (or (:result-set-fn opts) doall)]
+                                  (result-set-fn (map row-fn counts))))))]
      
        (if multi?
          (doseq [params param-group]
@@ -61,9 +63,7 @@
   open database connection. The param-group is a seq of values for all of
   the parameters. Return the generated keys for the (single) update/insert."
   ([conn sql-params]
-   (if (map? sql-params)
-     (db-do-prepared-return-keys conn sql-params)
-     (db-do-prepared-return-keys conn sql-params {})))
+   (db-do-prepared-return-keys conn sql-params {}))
   ([conn sql-params opts]
    (let [[sql & params] (if (sql-stmt? sql-params) (vector sql-params) (vec sql-params))]
      (db-do-execute-prepared-return-keys conn sql params opts))))

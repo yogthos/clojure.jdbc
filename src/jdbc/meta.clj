@@ -20,7 +20,7 @@
 (defn vendor-name
   "Get connection vendor name."
   [c]
-  (let [^java.sql.DatabaseMetaData meta (:metadata c)]
+  (let [^java.sql.DatabaseMetaData meta (proto/get-database-metadata c)]
     (.getDatabaseProductName meta)))
 
 (defn catalog-name
@@ -63,10 +63,11 @@
   (let [^java.sql.Connection conn (proto/connection c)
         ilvalue (.getTransactionIsolation conn)]
     (condp = ilvalue
-      java.sql.Connection/TRANSACTION_READ_UNCOMMITTED :read-commited
+      java.sql.Connection/TRANSACTION_NONE             :none
+      java.sql.Connection/TRANSACTION_READ_UNCOMMITTED :read-uncommitted
+      java.sql.Connection/TRANSACTION_READ_COMMITTED   :read-committed
       java.sql.Connection/TRANSACTION_REPEATABLE_READ  :repeatable-read
-      java.sql.Connection/TRANSACTION_SERIALIZABLE     :serializable
-      :none)))
+      java.sql.Connection/TRANSACTION_SERIALIZABLE     :serializable)))
 
 (defn db-major-version
   "Given a connection, return a database major

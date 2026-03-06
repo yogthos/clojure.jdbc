@@ -144,9 +144,8 @@
       (first (.executeBatch stmt))))
 
   clojure.lang.IPersistentVector
-  (execute [sqlvec conn {:keys [timeout] :as opts}]
+  (execute [sqlvec conn opts]
     (with-open [^PreparedStatement stmt (proto/prepared-statement sqlvec conn opts)]
-      (when timeout (.setQueryTimeout stmt timeout))
       (let [counts (.executeUpdate stmt)]
         (if (:returning opts)
           (with-open [rs (.getGeneratedKeys stmt)]
@@ -164,16 +163,14 @@
 
 (extend-protocol proto/IFetch
   java.lang.String
-  (fetch [^String sql ^Connection conn {:keys [timeout] :as opts}]
+  (fetch [^String sql ^Connection conn opts]
     (with-open [^PreparedStatement stmt (proto/prepared-statement sql conn opts)]
-      (when timeout (.setQueryTimeout stmt timeout))
       (let [^ResultSet rs (.executeQuery stmt)]
         (result-set->vector conn rs opts))))
 
   clojure.lang.IPersistentVector
-  (fetch [^clojure.lang.IPersistentVector sqlvec ^Connection conn {:keys [timeout] :as opts}]
+  (fetch [^clojure.lang.IPersistentVector sqlvec ^Connection conn opts]
     (with-open [^PreparedStatement stmt (proto/prepared-statement sqlvec conn opts)]
-      (when timeout (.setQueryTimeout stmt timeout))
       (let [^ResultSet rs (.executeQuery stmt)]
         (result-set->vector conn rs opts))))
 

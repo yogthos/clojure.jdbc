@@ -76,8 +76,8 @@
          options (merge (when (map? dbspec) dbspec) options)]
      (try
        ;; Set readonly flag if it found on the options map
-       (some->> (:read-only options)
-                (.setReadOnly conn))
+       (when (some? (:read-only options))
+         (.setReadOnly conn (boolean (:read-only options))))
 
        ;; Set the concrete isolation level if it found
        ;; on the options map

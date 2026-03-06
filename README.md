@@ -9,8 +9,8 @@ A low level JDBC library for Clojure, jdbc-based database access.
 Add the following dependency to your project:
 
 ```clojure
-{:deps {io.github.yogthos/clojure.jdbc {:git/tag "v0.9.1"
-                                        :git/sha "5916ae0"}}}
+{:deps {io.github.yogthos/clojure.jdbc {:git/tag "v0.9.2"
+                                        :git/sha "f21cc65"}}}
 ```
 
 You also need to add an entry for the java driver that you need. For instance, for `Postgres`:

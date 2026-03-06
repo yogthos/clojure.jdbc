@@ -37,7 +37,7 @@
                                                    ((^:once fn* [rs]
                                                                 (list (first rs)
                                                                       (row-fn (second rs))))
-                                                    (resultset/result-set->lazyseq conn rs opts))
+                                                    (resultset/result-set->lazyseq conn rs (assoc opts :as-rows? true :header? true)))
                                                    :else
                                                    (row-fn (first (resultset/result-set->lazyseq conn rs opts))))]
                        ;; sqlite (and maybe others?) requires
@@ -61,9 +61,7 @@
   open database connection. The param-group is a seq of values for all of
   the parameters. Return the generated keys for the (single) update/insert."
   ([conn sql-params]
-   (if (map? sql-params)
-     (db-do-prepared-return-keys conn sql-params)
-     (db-do-prepared-return-keys conn sql-params {})))
+   (db-do-prepared-return-keys conn sql-params {}))
   ([conn sql-params opts]
    (let [[sql & params] (if (sql-stmt? sql-params) (vector sql-params) (vec sql-params))]
      (db-do-execute-prepared-return-keys conn sql params opts))))

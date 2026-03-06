@@ -60,7 +60,6 @@
              " SET " (str/join
                       ","
                       (kv-sql ks vs entities " = NULL"))
-             (when where " WHERE ")
-             where)
+             (when-not (str/blank? where) (str " WHERE " where)))
         (cons (concat (remove nil? vs) params))
         (vec))))

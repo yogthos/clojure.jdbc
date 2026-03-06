@@ -1,6 +1,7 @@
 (ns jdbc.core-test
   (:require [jdbc.core :as jdbc]
             [jdbc.proto :as proto]
+            [jdbc.insert :as jdbc.insert]
             [hikari-cp.core :as hikari]
             [clojure.test :refer :all]
             [clojure.string :as str])
@@ -61,6 +62,32 @@
                (proto/connection))]
     (is (= (.getTransactionIsolation c1) 8))
     (is (= (.getTransactionIsolation c2) 2))))
+
+(deftest db-invalid-isolation-level
+  (is (thrown? IllegalArgumentException
+              (jdbc/connection h2-dbspec3 {:isolation-level :bogus}))))
+
+(deftest connection-closed-on-setup-failure
+  ;; When connection setup fails (e.g. bad isolation level), the raw JDBC
+  ;; connection should be closed, not leaked.
+  (let [closed? (atom false)
+        orig-conn (proto/connection h2-dbspec3)
+        spy-conn (proxy [java.sql.Connection] []
+                   (close [] (reset! closed? true))
+                   (setReadOnly [_] nil)
+                   (setAutoCommit [_] nil)
+                   (setTransactionIsolation [_]
+                     (throw (IllegalArgumentException. "boom")))
+                   (getMetaData [] (.getMetaData orig-conn)))]
+    (try
+      ;; Bypass proto/connection by calling the 2-arity directly
+      ;; with a datasource that returns our spy connection
+      (let [ds (reify javax.sql.DataSource
+                 (getConnection [_] spy-conn))]
+        (jdbc/connection ds {:isolation-level :serializable}))
+      (catch Exception _))
+    (.close orig-conn)
+    (is (true? @closed?) "Raw connection should be closed when setup throws")))
 
 (deftest db-isolation-level-2
   (let [func1 (fn [conn]
@@ -132,12 +159,21 @@
         (let [result (jdbc/execute! conn sql2 {:returning true})]
           (is (= result [{:id 1, :age 1} {:id 2, :age 2}])))))))
 
+(deftest execute-return-type-consistency
+  ;; String execute should return a single count, same as vector execute
+  (with-open [conn (jdbc/connection h2-dbspec3)]
+    (jdbc/execute! conn "CREATE TABLE exec_test (id integer, value varchar(255));")
+    (let [r1 (jdbc/execute! conn "INSERT INTO exec_test VALUES (1, 'foo');")
+          r2 (jdbc/execute! conn ["INSERT INTO exec_test VALUES (?, ?);" 2 "bar"])]
+      (is (= 1 r1) "String execute should return a single count")
+      (is (= 1 r2) "Vector execute should return a single count"))))
+
 (deftest db-commands
   ;; Simple statement
   (with-open [conn (jdbc/connection h2-dbspec3)]
     (let [sql "CREATE TABLE foo (name varchar(255), age integer);"
           r   (jdbc/execute! conn sql)]
-      (is (= (list 0) r))))
+      (is (= 0 r))))
 
   ;; Statement with exception
   (with-open [conn (jdbc/connection h2-dbspec3)]
@@ -186,6 +222,15 @@
           (is (= [{:foo 2}] result)))
         (let [result (vec (jdbc/cursor->lazyseq cursor))]
           (is (= [{:foo 2}] result)))))))
+
+(deftest fetch-one-limits-results
+  (with-open [conn (jdbc/connection h2-dbspec3)]
+    (jdbc/execute! conn "CREATE TABLE fetch_one_test (id integer);")
+    (jdbc/execute! conn ["INSERT INTO fetch_one_test VALUES (1);"])
+    (jdbc/execute! conn ["INSERT INTO fetch_one_test VALUES (2);"])
+    (jdbc/execute! conn ["INSERT INTO fetch_one_test VALUES (3);"])
+    (let [result (jdbc/fetch-one conn "SELECT * FROM fetch_one_test")]
+      (is (= {:id 1} result)))))
 
 (deftest insert-bytes
   (let [buffer       (byte-array (map byte (range 0 10)))
@@ -366,6 +411,27 @@
             (let [results (jdbc/fetch conn [sql3])]
               (is (= (count results) 2)))))))))
 
+(deftest insert-as-arrays-option
+  (with-open [conn (jdbc/connection h2-dbspec3)]
+    (jdbc/execute! conn "CREATE TABLE arr_test (id integer auto_increment primary key, value varchar(255));")
+    (let [result (jdbc.insert/db-do-execute-prepared-return-keys
+                  (proto/connection conn)
+                  "INSERT INTO arr_test (value) VALUES (?)"
+                  ["foo"]
+                  {:returning true :as-arrays? true})]
+      ;; as-arrays? should return [header row] where row is a vector, not a map
+      (is (sequential? result))
+      (is (sequential? (first result)))))) ;; header should be a vector of column names
+
+(deftest db-do-prepared-return-keys-no-infinite-recursion
+  (with-open [conn (jdbc/connection h2-dbspec3)]
+    (jdbc/execute! conn "CREATE TABLE recurse_test (id integer, value varchar(255));")
+    ;; Calling db-do-prepared-return-keys with a map as sql-params should throw
+    ;; a meaningful error, not stack overflow from infinite recursion
+    (is (thrown? Exception
+                (jdbc.insert/db-do-prepared-return-keys
+                 (proto/connection conn) {:not "a valid sql-params"})))))
+
 (deftest insert-test
   (with-open [conn (jdbc/connection pg-dbspec)]
     (jdbc/atomic conn
@@ -401,6 +467,14 @@
                                                {:id 4}]
                                               {:returning true
                                                :row-fn :id}))))))
+
+(deftest update-no-debug-output
+  (with-open [conn (jdbc/connection h2-dbspec3)]
+    (jdbc/execute! conn "CREATE TABLE update_debug (id integer, value varchar(255));")
+    (jdbc/execute! conn ["INSERT INTO update_debug (id, value) VALUES (?, ?);" 1 "foo"])
+    (let [output (with-out-str
+                   (jdbc/update! conn :update_debug {:value "bar"} ["id = ?" 1]))]
+      (is (= "" output) "update! should not print debug output to stdout"))))
 
 (deftest update-test
   (with-open [conn (jdbc/connection pg-dbspec)]

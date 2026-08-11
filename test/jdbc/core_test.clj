@@ -198,10 +198,16 @@
     (let [result (jdbc/fetch conn ["SELECT * FROM generate_series(1, ?) LIMIT 1 OFFSET 3;" 10])]
       (is (= (count result) 1))))
 
-  ;; Fetch with sqlvec format and overwriting identifiers parameter
+  ;; Fetch with sqlvec format and overwriting identifiers parameter. The alias is
+  ;; quoted so the driver reports it uppercase: SQLite preserves the case it was
+  ;; given, where H2 uppercased an unquoted one. Without the quotes the label
+  ;; would arrive lowercase and identity would agree with the default
+  ;; lower-casing, leaving the test unable to tell the two apart.
   (with-open [conn (jdbc/connection sqlite-dbspec3)]
-    (let [result (jdbc/fetch conn ["SELECT 1 + 1 as foo;"] {:identifiers identity})]
-      (is (= [{:FOO 2}] result))))
+    (let [result (jdbc/fetch conn ["SELECT 1 + 1 as \"FOO\";"] {:identifiers identity})]
+      (is (= [{:FOO 2}] result)))
+    (let [result (jdbc/fetch conn ["SELECT 1 + 1 as \"FOO\";"])]
+      (is (= [{:foo 2}] result))))
 
   ;; Fetch returning rows
   (with-open [conn (jdbc/connection sqlite-dbspec3)]

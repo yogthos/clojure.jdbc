@@ -6,7 +6,7 @@
   :dependencies [[org.clojure/clojure "1.11.1" :scope "provided"]]
   :profiles
   {:dev
-   {:dependencies [[com.h2database/h2 "1.4.192"]
+   {:dependencies [[org.xerial/sqlite-jdbc "3.46.1.3"]
                    [org.postgresql/postgresql "42.6.0"]
                    [hikari-cp "3.0.1"]
                    [org.clojure/data.json "2.4.0"]]
@@ -25,5 +25,5 @@
            :global-vars {*warn-on-reflection* true
                          *unchecked-math* :warn-on-boxed}
            :dependencies [[org.clojure/java.jdbc "0.5.8"]
-                          [com.h2database/h2 "1.4.192"]
+                          [org.xerial/sqlite-jdbc "3.46.1.3"]
                           [criterium "0.4.4"]]}})

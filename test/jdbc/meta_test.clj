@@ -5,24 +5,26 @@
             [clojure.test :refer :all])
   (:import java.sql.Connection))
 
-(def h2-dbspec {:subprotocol "h2"
-                :subname "mem:"})
+(def sqlite-dbspec {:subprotocol "sqlite"
+                    :subname ":memory:"})
 
 (deftest isolation-level-mapping
-  (with-open [conn (jdbc/connection h2-dbspec)]
+  (with-open [conn (jdbc/connection sqlite-dbspec)]
     (let [raw ^Connection (proto/connection conn)]
-      ;; H2 defaults to read-committed
+      ;; SQLite reports back every level it is given, so each one round-trips
       (.setTransactionIsolation raw Connection/TRANSACTION_READ_COMMITTED)
       (is (= :read-committed (meta/isolation-level conn)))
 
       (.setTransactionIsolation raw Connection/TRANSACTION_READ_UNCOMMITTED)
       (is (= :read-uncommitted (meta/isolation-level conn)))
 
-      ;; H2 upgrades REPEATABLE_READ to SERIALIZABLE, so we only test serializable
+      (.setTransactionIsolation raw Connection/TRANSACTION_REPEATABLE_READ)
+      (is (= :repeatable-read (meta/isolation-level conn)))
+
       (.setTransactionIsolation raw Connection/TRANSACTION_SERIALIZABLE)
       (is (= :serializable (meta/isolation-level conn))))))
 
 (deftest vendor-name-test
-  (with-open [conn (jdbc/connection h2-dbspec)]
+  (with-open [conn (jdbc/connection sqlite-dbspec)]
     (is (string? (meta/vendor-name conn)))
-    (is (= "H2" (meta/vendor-name conn)))))
+    (is (= "SQLite" (meta/vendor-name conn)))))

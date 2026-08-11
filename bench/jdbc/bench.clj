@@ -7,9 +7,12 @@
   (:import java.sql.Connection)
   (:gen-class))
 
-(def dbspec {:subprotocol "h2"
-             :subname "mem:"})
-(def sql "select * from system_range(0, 100);")
+(def dbspec {:subprotocol "sqlite"
+             :subname ":memory:"})
+;; SQLite has no system_range; a recursive CTE gives the same 101 rows
+(def sql (str "with recursive r(x) as "
+              "(select 0 union all select x + 1 from r where x < 100) "
+              "select * from r;"))
 
 (def ^:dynamic *iterations* 1000)
 

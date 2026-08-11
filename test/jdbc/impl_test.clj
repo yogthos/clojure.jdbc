@@ -25,7 +25,7 @@
     (let [result (#'impl/querystring->map uri)]
       (is (= "require" (:sslmode result))))))
 
-(def h2-mem {:subprotocol "h2" :subname "mem:"})
+(def sqlite-mem {:subprotocol "sqlite" :subname ":memory:"})
 
 (deftest internal-keys-not-passed-as-driver-properties
   ;; Keys like :isolation-level, :read-only, :schema, :tx-strategy, :classname
@@ -38,9 +38,9 @@
                     (orig data))]
       (try
         (#'impl/dbspec->connection
-         {:subprotocol "h2"
+         {:subprotocol "sqlite"
           :subname "mem:"
-          :classname "org.h2.Driver"
+          :classname "org.sqlite.JDBC"
           :isolation-level :serializable
           :read-only true
           :schema "public"
@@ -57,7 +57,7 @@
 
 (deftest prepared-statement-closed-on-param-failure
   ;; If set-params throws, the PreparedStatement should still be closed
-  (with-open [conn (jdbc/connection h2-mem)]
+  (with-open [conn (jdbc/connection sqlite-mem)]
     (let [raw (proto/connection conn)
           closed? (atom false)
           bomb (reify proto/ISQLType

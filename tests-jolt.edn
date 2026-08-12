@@ -1,0 +1,7 @@
+#kaocha/v1
+{:tests [{:id :unit
+          :test-paths ["test"]
+          :ns-patterns ["^jdbc\\.core-test$"
+                        "^jdbc\\.util-test$"
+                        "^jdbc\\.impl-test$"
+                        "^jdbc\\.meta-test$"]}]}

@@ -39,7 +39,7 @@
       (try
         (#'impl/dbspec->connection
          {:subprotocol "sqlite"
-          :subname "mem:"
+          :subname ":memory:"
           :classname "org.sqlite.JDBC"
           :isolation-level :serializable
           :read-only true
